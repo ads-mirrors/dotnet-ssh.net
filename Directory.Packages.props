@@ -14,11 +14,8 @@
     </PackageVersion>
     <PackageVersion Include="Meziantou.Analyzer" Version="2.0.189" />
     
-    <!-- Must be kept at version 1.0.0, see https://github.com/sshnet/SSH.NET/pull/1288 for details. -->
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.3" />
-    
-    <!-- No reason to require later than 6.0.0 at this time. -->
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.3" />
+    <!-- Should stay on LTS .NET releases. -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageVersion Include="MSTest.TestAdapter" Version="3.8.2" />
