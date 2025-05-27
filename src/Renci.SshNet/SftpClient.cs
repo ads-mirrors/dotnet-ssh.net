@@ -1,11 +1,13 @@
 ﻿#nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -2456,56 +2458,82 @@ namespace Renci.SshNet
             // create buffer of optimal length
             var buffer = new byte[_sftpSession.CalculateOptimalWriteLength(_bufferSize, handle)];
 
-            var bytesRead = input.Read(buffer, 0, buffer.Length);
+            int bytesRead;
             var expectedResponses = 0;
-            var responseReceivedWaitHandle = new AutoResetEvent(initialState: false);
 
-            do
+            // We will send out all the write requests without waiting for each response.
+            // Afterwards, we may wait on this handle until all responses are received
+            // or an error has occured.
+            using var mres = new ManualResetEventSlim(initialState: false);
+
+            ExceptionDispatchInfo? exception = null;
+
+            while ((bytesRead = input.Read(buffer, 0, buffer.Length)) != 0)
             {
-                // Cancel upload
                 if (asyncResult is not null && asyncResult.IsUploadCanceled)
                 {
                     break;
                 }
 
-                if (bytesRead > 0)
-                {
-                    var writtenBytes = offset + (ulong)bytesRead;
+                exception?.Throw();
 
-                    _sftpSession.RequestWrite(handle, offset, buffer, offset: 0, bytesRead, wait: null, s =>
+                var writtenBytes = offset + (ulong)bytesRead;
+
+                _ = Interlocked.Increment(ref expectedResponses);
+                mres.Reset();
+
+                _sftpSession.RequestWrite(handle, offset, buffer, offset: 0, bytesRead, wait: null, s =>
+                {
+                    var setHandle = false;
+
+                    try
+                    {
+                        if (Sftp.SftpSession.GetSftpException(s) is Exception ex)
                         {
-                            if (s.StatusCode == StatusCodes.Ok)
-                            {
-                                _ = Interlocked.Decrement(ref expectedResponses);
-                                _ = responseReceivedWaitHandle.Set();
+                            exception = ExceptionDispatchInfo.Capture(ex);
+                        }
 
-                                asyncResult?.Update(writtenBytes);
+                        if (exception is not null)
+                        {
+                            setHandle = true;
+                            return;
+                        }
 
-                                // Call callback to report number of bytes written
-                                if (uploadCallback is not null)
-                                {
-                                    // Execute callback on different thread
-                                    ThreadAbstraction.ExecuteThread(() => uploadCallback(writtenBytes));
-                                }
-                            }
-                        });
+                        Debug.Assert(s.StatusCode == StatusCodes.Ok);
 
-                    _ = Interlocked.Increment(ref expectedResponses);
+                        asyncResult?.Update(writtenBytes);
 
-                    offset += (ulong)bytesRead;
+                        // Call callback to report number of bytes written
+                        if (uploadCallback is not null)
+                        {
+                            // Execute callback on different thread
+                            ThreadAbstraction.ExecuteThread(() => uploadCallback(writtenBytes));
+                        }
+                    }
+                    finally
+                    {
+                        if (Interlocked.Decrement(ref expectedResponses) == 0 || setHandle)
+                        {
+                            mres.Set();
+                        }
+                    }
+                });
 
-                    bytesRead = input.Read(buffer, 0, buffer.Length);
-                }
-                else if (expectedResponses > 0)
-                {
-                    // Wait for expectedResponses to change
-                    _sftpSession.WaitOnHandle(responseReceivedWaitHandle, _operationTimeout);
-                }
+                offset += (ulong)bytesRead;
             }
-            while (expectedResponses > 0 || bytesRead > 0);
+
+            // Make sure the read of exception cannot be executed ahead of
+            // the read of expectedResponses so that we do not miss an
+            // exception.
+
+            if (Volatile.Read(ref expectedResponses) != 0)
+            {
+                _sftpSession.WaitOnHandle(mres.WaitHandle, _operationTimeout);
+            }
+
+            exception?.Throw();
 
             _sftpSession.RequestClose(handle);
-            responseReceivedWaitHandle.Dispose();
         }
 
         private async Task InternalUploadFileAsync(Stream input, string path, CancellationToken cancellationToken)
