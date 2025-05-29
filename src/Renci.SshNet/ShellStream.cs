@@ -781,7 +781,7 @@ namespace Renci.SshNet
             return Read(buffer.AsSpan(offset, count));
         }
 
-#if NETSTANDARD2_1 || NET
+#if NET
         /// <inheritdoc/>
         public override int Read(Span<byte> buffer)
 #else
@@ -857,7 +857,7 @@ namespace Renci.SshNet
             Write(buffer.AsSpan(offset, count));
         }
 
-#if NETSTANDARD2_1 || NET
+#if NET
         /// <inheritdoc/>
         public override void Write(ReadOnlySpan<byte> buffer)
 #else

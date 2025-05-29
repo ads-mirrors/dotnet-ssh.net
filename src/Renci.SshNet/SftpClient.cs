@@ -2310,7 +2310,7 @@ namespace Renci.SshNet
 
             var basePath = fullPath;
 
-#if NET || NETSTANDARD2_1
+#if NET
             if (!basePath.EndsWith('/'))
 #else
             if (!basePath.EndsWith("/", StringComparison.Ordinal))
