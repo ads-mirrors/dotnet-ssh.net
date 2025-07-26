@@ -24,7 +24,7 @@ namespace Renci.SshNet
 
         private readonly string _subsystemName;
         private readonly ILogger _logger;
-        private ISession _session;
+        private readonly ISession _session;
         private IChannelSession _channel;
         private Exception _exception;
         private EventWaitHandle _errorOccurredWaitHandle = new ManualResetEvent(initialState: false);
@@ -72,6 +72,14 @@ namespace Renci.SshNet
             get { return _channel is not null && _channel.IsOpen; }
         }
 
+        public ILoggerFactory SessionLoggerFactory
+        {
+            get
+            {
+                return _session.SessionLoggerFactory;
+            }
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="SubsystemSession"/> class.
         /// </summary>
@@ -86,7 +94,7 @@ namespace Renci.SshNet
 
             _session = session;
             _subsystemName = subsystemName;
-            _logger = SshNetLoggingConfiguration.LoggerFactory.CreateLogger(GetType());
+            _logger = SessionLoggerFactory.CreateLogger(GetType());
             OperationTimeout = operationTimeout;
         }
 
@@ -522,11 +530,6 @@ namespace Renci.SshNet
         /// </remarks>
         private void UnsubscribeFromSessionEvents(ISession session)
         {
-            if (session is null)
-            {
-                return;
-            }
-
             session.Disconnected -= Session_Disconnected;
             session.ErrorOccured -= Session_ErrorOccurred;
         }
@@ -554,8 +557,6 @@ namespace Renci.SshNet
             if (disposing)
             {
                 Disconnect();
-
-                _session = null;
 
                 var errorOccurredWaitHandle = _errorOccurredWaitHandle;
                 if (errorOccurredWaitHandle != null)

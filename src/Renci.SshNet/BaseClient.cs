@@ -192,7 +192,7 @@ namespace Renci.SshNet
             _connectionInfo = connectionInfo;
             _ownsConnectionInfo = ownsConnectionInfo;
             _serviceFactory = serviceFactory;
-            _logger = SshNetLoggingConfiguration.LoggerFactory.CreateLogger(GetType());
+            _logger = (connectionInfo.LoggerFactory ?? SshNetLoggingConfiguration.LoggerFactory).CreateLogger(GetType());
             _keepAliveInterval = Timeout.InfiniteTimeSpan;
         }
 
