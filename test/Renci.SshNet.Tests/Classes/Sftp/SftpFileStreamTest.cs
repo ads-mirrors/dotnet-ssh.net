@@ -17,7 +17,7 @@ namespace Renci.SshNet.Tests.Classes.Sftp
     [TestClass]
     public class SftpFileStreamTest
     {
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task BadFileMode_ThrowsArgumentOutOfRangeException(bool isAsync)
@@ -38,7 +38,7 @@ namespace Renci.SshNet.Tests.Classes.Sftp
             Assert.AreEqual("mode", ex.ParamName);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task BadFileAccess_ThrowsArgumentOutOfRangeException(bool isAsync)
