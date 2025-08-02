@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -1727,7 +1728,7 @@ namespace Renci.SshNet
             using (var stream = OpenRead(path))
             {
                 var buffer = new byte[stream.Length];
-                _ = stream.Read(buffer, 0, buffer.Length);
+                stream.ReadExactly(buffer, 0, buffer.Length);
                 return buffer;
             }
         }
@@ -1760,23 +1761,7 @@ namespace Renci.SshNet
         /// <exception cref="ObjectDisposedException">The method was called after the client was disposed.</exception>
         public string[] ReadAllLines(string path, Encoding encoding)
         {
-            /*
-             * We use the default buffer size for StreamReader - which is 1024 bytes - and the configured buffer size
-             * for the SftpFileStream. We may want to revisit this later.
-             */
-
-            var lines = new List<string>();
-
-            using (var stream = new StreamReader(OpenRead(path), encoding))
-            {
-                string? line;
-                while ((line = stream.ReadLine()) != null)
-                {
-                    lines.Add(line);
-                }
-            }
-
-            return lines.ToArray();
+            return ReadLines(path, encoding).ToArray();
         }
 
         /// <summary>
@@ -1807,15 +1792,8 @@ namespace Renci.SshNet
         /// <exception cref="ObjectDisposedException">The method was called after the client was disposed.</exception>
         public string ReadAllText(string path, Encoding encoding)
         {
-            /*
-             * We use the default buffer size for StreamReader - which is 1024 bytes - and the configured buffer size
-             * for the SftpFileStream. We may want to revisit this later.
-             */
-
-            using (var stream = new StreamReader(OpenRead(path), encoding))
-            {
-                return stream.ReadToEnd();
-            }
+            using var sr = new StreamReader(OpenRead(path), encoding);
+            return sr.ReadToEnd();
         }
 
         /// <summary>
@@ -1825,12 +1803,16 @@ namespace Renci.SshNet
         /// <returns>
         /// The lines of the file.
         /// </returns>
-        /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
-        /// <exception cref="SshConnectionException">Client is not connected.</exception>
-        /// <exception cref="ObjectDisposedException">The method was called after the client was disposed.</exception>
+        /// <remarks>
+        /// The lines are enumerated lazily. The opening of the file and any resulting exceptions occur
+        /// upon enumeration.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>. Thrown eagerly.</exception>
+        /// <exception cref="SshConnectionException">Client is not connected upon enumeration.</exception>
+        /// <exception cref="ObjectDisposedException">The return value is enumerated after the client is disposed.</exception>
         public IEnumerable<string> ReadLines(string path)
         {
-            return ReadAllLines(path);
+            return ReadLines(path, Encoding.UTF8);
         }
 
         /// <summary>
@@ -1841,12 +1823,36 @@ namespace Renci.SshNet
         /// <returns>
         /// The lines of the file.
         /// </returns>
-        /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
-        /// <exception cref="SshConnectionException">Client is not connected.</exception>
-        /// <exception cref="ObjectDisposedException">The method was called after the client was disposed.</exception>
+        /// <remarks>
+        /// The lines are enumerated lazily. The opening of the file and any resulting exceptions occur
+        /// upon enumeration.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>. Thrown eagerly.</exception>
+        /// <exception cref="SshConnectionException">Client is not connected upon enumeration.</exception>
+        /// <exception cref="ObjectDisposedException">The return value is enumerated after the client is disposed.</exception>
         public IEnumerable<string> ReadLines(string path, Encoding encoding)
         {
-            return ReadAllLines(path, encoding);
+            // We allow this usage exception to throw eagerly...
+            ThrowHelper.ThrowIfNull(path);
+
+            // ... but other exceptions will throw lazily i.e. inside the state machine created
+            // by yield. We could choose to open the file eagerly as well in order to throw
+            // file-related exceptions eagerly (matching what File.ReadLines does), but this
+            // complicates double enumeration, and introduces the problem that File.ReadLines
+            // has whereby the file is not closed if the return value is not enumerated.
+            return Enumerate();
+
+            IEnumerable<string> Enumerate()
+            {
+                using var sr = new StreamReader(OpenRead(path), encoding);
+
+                string? line;
+
+                while ((line = sr.ReadLine()) != null)
+                {
+                    yield return line;
+                }
+            }
         }
 
         /// <summary>
