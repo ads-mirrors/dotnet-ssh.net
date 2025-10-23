@@ -4,7 +4,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -2120,7 +2119,7 @@ namespace Renci.SshNet
         {
             if (!Directory.Exists(sourcePath))
             {
-                throw new FileNotFoundException(string.Format("Source directory not found: {0}", sourcePath));
+                throw new FileNotFoundException($"Source directory not found: {sourcePath}");
             }
 
             var uploadedFiles = new List<FileInfo>();
@@ -2170,7 +2169,7 @@ namespace Renci.SshNet
 
                     if (isDifferent)
                     {
-                        var remoteFileName = string.Format(CultureInfo.InvariantCulture, @"{0}/{1}", destinationPath, localFile.Name);
+                        var remoteFileName = $"{destinationPath}/{localFile.Name}";
                         try
                         {
                             using (var file = File.OpenRead(localFile.FullName))
@@ -2237,7 +2236,7 @@ namespace Renci.SshNet
             if (!basePath.EndsWith("/", StringComparison.Ordinal))
 #endif
             {
-                basePath = string.Format("{0}/", fullPath);
+                basePath = $"{fullPath}/";
             }
 
             var result = new List<ISftpFile>();
@@ -2249,7 +2248,7 @@ namespace Renci.SshNet
                 foreach (var f in files)
                 {
                     result.Add(new SftpFile(_sftpSession,
-                                            string.Format(CultureInfo.InvariantCulture, "{0}{1}", basePath, f.Key),
+                                            $"{basePath}{f.Key}",
                                             f.Value));
                 }
 
